@@ -174,7 +174,7 @@ poetry.toml
 pyrightconfig.json
 
 ### VisualStudioCode ###
-.vscode/
+.vscode/ # Edited so that pathways, settings, and etc. is not  shared
 
 # Local History for Visual Studio Code
 .history/
