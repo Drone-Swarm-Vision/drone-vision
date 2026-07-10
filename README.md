@@ -4,6 +4,9 @@ This project will use Renforcement learning to create a swarm inteligence using 
 
 Team members:
   Allen
+  
   Steve
+  
   Ethan
+  
   Nitin
