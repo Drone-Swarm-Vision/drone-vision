@@ -22,7 +22,7 @@ def add_platform(space: pymunk.Space, x: int, y: int, angle: float, width: int, 
     space.add(platform_body, platform_shape)
     return platform_body, platform_shape
 
-def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size: int, higher = False):
+def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size: int, num_spikes = 1, higher = False):
     platform_coords = get_world_coords(platform_shape)
     if higher:
         platform_coords = max(platform_coords, key=lambda point: point[1])
@@ -31,21 +31,39 @@ def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size: 
             platform_coords = min(platform_coords, key=lambda point: point[0])
         else:
             platform_coords = max(platform_coords, key=lambda point: point[0])
-    
+    spikes = []
+
     main_coord = pymunk.Vec2d.from_polar(size, -2.6180)
     other_base_coord = pymunk.Vec2d.from_polar(size, -0.5236)
     peak_coord = pymunk.Vec2d.from_polar(size, 1.5708)
 
-    spike_body = pymunk.Body(body_type=pymunk.Body.STATIC)
-    spike_body.position = pymunk.Vec2d(platform_coords[0], platform_coords[1]) + pymunk.Vec2d.from_polar(size, (platform_shape.body.angle + 0.5236 if platform_shape.body.angle >= 0 else platform_shape.body.angle + 2.6180))
-    print(spike_body.position)
-    print(main_coord, other_base_coord, peak_coord)
+    for i in range(num_spikes):
+        spike_body = pymunk.Body(body_type=pymunk.Body.STATIC)
+        spike_body.position = pymunk.Vec2d(platform_coords[0], platform_coords[1]) + pymunk.Vec2d.from_polar(size, (platform_shape.body.angle + 0.5236 if platform_shape.body.angle >= 0 else platform_shape.body.angle + 2.6180))
 
-    spike_body.angle = platform_shape.body.angle
-    spike_shape = pymunk.Poly(spike_body, [main_coord, other_base_coord, peak_coord])
-    spike_shape.collision_type = STATIC_TERRAIN_TYPE
-    space.add(spike_body, spike_shape)
-    return spike_body, spike_shape
+        spike_body.angle = platform_shape.body.angle
+        spike_shape = pymunk.Poly(spike_body, [main_coord, other_base_coord, peak_coord])
+        spike_shape.collision_type = STATIC_TERRAIN_TYPE
+        space.add(spike_body, spike_shape)
+        spikes.append([spike_body, spike_shape])
+
+        platform_coords += pymunk.Vec2d.from_polar(1.5 * size, platform_shape.body.angle)
+    if num_spikes == 1:
+        return spikes[0]
+    else:
+        return spikes
+
+def get_closest_spike(space: pymunk.Space, ball_body: pymunk.Body, spikes):
+    spike_coords = []
+    for spike in spikes:
+        spike_coords.append(spike[0].position)
+    ball_coords = ball_body.position
+
+    closest = spike_coords[0]
+    for coords in spike_coords:
+        if ball_coords.get_distance(coords) < ball_coords.get_distance(closest):
+            closest = coords
+    return closest, ball_coords.get_distance(closest)
 
 
 
@@ -61,6 +79,7 @@ space.gravity = 0.0, -900.0
 BALL_TYPE = 0
 STATIC_TERRAIN_TYPE = 1
 SPIKE_TYPE = 2
+GOAL_TYPE = 3
 
 ball_body = pymunk.Body(mass = 10, moment = 1, body_type=pymunk.Body.DYNAMIC)
 ball_body.position = (150, 600)
@@ -70,7 +89,7 @@ space.add(ball_body, ball_shape)
 
 platforms.append(add_platform(space, 150, 500, 0.25, 120, 10))
 platforms.append(add_platform(space, 0, 300, -0.5, 120, 10))
-spikes.append(add_platform_spike(space, platforms[0][1], 10))
+spikes.extend(add_platform_spike(space, platforms[0][1], 10, 2))
 spikes.append(add_platform_spike(space, platforms[1][1], 10))
 
 def end_sim(arbiter, space, data):
@@ -92,7 +111,6 @@ while running:
         elif can_jump and event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
             ball_body.velocity = (ball_body.velocity.x, 350)
     
-    #print(can_jump)
     screen.fill('white')
 
     # render
@@ -120,3 +138,4 @@ while running:
     clock.tick(60)
 
 pygame.quit()
+print(get_closest_spike(space, ball_body, spikes))
