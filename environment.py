@@ -6,15 +6,60 @@ SCREEN_DIMENSIONS = (300, 600)
 def flipy(y):
     return -y + SCREEN_DIMENSIONS[1]
 
+def get_world_coords(shape: pymunk.Shape):
+    coords = []
+    for v in shape.get_vertices():
+        x, y = v.rotated(shape.body.angle) + shape.body.position
+        coords.append([x, y])
+    return coords
+
+def add_platform(space: pymunk.Space, x: int, y: int, angle: float, width: int, height: int):
+    platform_body = pymunk.Body(body_type=pymunk.Body.STATIC)
+    platform_body.position = (x, y)
+    platform_body.angle = angle
+    platform_shape = pymunk.Poly.create_box(platform_body, (width, height))
+    platform_shape.collision_type = STATIC_TERRAIN_TYPE
+    space.add(platform_body, platform_shape)
+    return platform_body, platform_shape
+
+def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size: int, higher = False):
+    platform_coords = get_world_coords(platform_shape)
+    if higher:
+        platform_coords = max(platform_coords, key=lambda point: point[1])
+    else:
+        if platform_shape.body.angle >= 0:
+            platform_coords = min(platform_coords, key=lambda point: point[0])
+        else:
+            platform_coords = max(platform_coords, key=lambda point: point[0])
+    
+    main_coord = pymunk.Vec2d.from_polar(size, -2.6180)
+    other_base_coord = pymunk.Vec2d.from_polar(size, -0.5236)
+    peak_coord = pymunk.Vec2d.from_polar(size, 1.5708)
+
+    spike_body = pymunk.Body(body_type=pymunk.Body.STATIC)
+    spike_body.position = pymunk.Vec2d(platform_coords[0], platform_coords[1]) + pymunk.Vec2d.from_polar(size, (platform_shape.body.angle + 0.5236 if platform_shape.body.angle >= 0 else platform_shape.body.angle + 2.6180))
+    print(spike_body.position)
+    print(main_coord, other_base_coord, peak_coord)
+
+    spike_body.angle = platform_shape.body.angle
+    spike_shape = pymunk.Poly(spike_body, [main_coord, other_base_coord, peak_coord])
+    spike_shape.collision_type = STATIC_TERRAIN_TYPE
+    space.add(spike_body, spike_shape)
+    return spike_body, spike_shape
+
+
+
 pygame.init()
 screen = pygame.display.set_mode(SCREEN_DIMENSIONS)
 clock = pygame.time.Clock()
 running = True
+platforms = []
+spikes = []
 
 space = pymunk.Space()
 space.gravity = 0.0, -900.0
 BALL_TYPE = 0
-TERRAIN_TYPE = 1
+STATIC_TERRAIN_TYPE = 1
 SPIKE_TYPE = 2
 
 ball_body = pymunk.Body(mass = 10, moment = 1, body_type=pymunk.Body.DYNAMIC)
@@ -23,21 +68,20 @@ ball_shape = pymunk.Circle(ball_body, 10)
 ball_shape.collision_type = BALL_TYPE
 space.add(ball_body, ball_shape)
 
-platform_body = pymunk.Body(body_type=pymunk.Body.STATIC)
-platform_body.position = (150, 300)
-platform_body.angle = 0.5
-platform_shape = pymunk.Poly.create_box(platform_body, (120, 10))
-platform_shape.collision_type = TERRAIN_TYPE
-space.add(platform_body, platform_shape)
+platforms.append(add_platform(space, 150, 500, 0.25, 120, 10))
+platforms.append(add_platform(space, 0, 300, -0.5, 120, 10))
+spikes.append(add_platform_spike(space, platforms[0][1], 10))
+spikes.append(add_platform_spike(space, platforms[1][1], 10))
 
 def end_sim(arbiter, space, data):
+    global running
     running = False
 
 can_jump = False
 def flip_jump_state(arbiter, space, data):
     global can_jump
     can_jump = not can_jump
-space.on_collision(BALL_TYPE, TERRAIN_TYPE, begin=flip_jump_state, separate=flip_jump_state)
+space.on_collision(BALL_TYPE, STATIC_TERRAIN_TYPE, begin=flip_jump_state, separate=flip_jump_state)
 space.on_collision(BALL_TYPE, SPIKE_TYPE, begin=end_sim)
 
 
@@ -57,7 +101,12 @@ while running:
                        int(flipy(ball_shape.body.position.y))), 
                        int(ball_shape.radius), 2)
     
-    pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, flipy(v.y)) for v in [platform_body.local_to_world(v) for v in platform_shape.get_vertices()]])
+    for platform in platforms:
+        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, flipy(v.y)) for v in [platform[0].local_to_world(v) for v in platform[1].get_vertices()]])
+
+    for spike in spikes:
+        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
+        screen.set_at((int(spike[0].position.x), int(spike[0].position.y)), pygame.Color('red')) 
 
     dt = 1.0 / 60.0
     for x in range(1):
