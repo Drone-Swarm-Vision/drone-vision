@@ -20,6 +20,7 @@ all_objects = []
 platforms = []
 spikes = []
 conveyors = []
+goal = []
 
 space = pymunk.Space()
 space.gravity = 0.0, -GRAVITY
@@ -34,12 +35,20 @@ platforms.append(fcs.add_platform(space, 150, 500, 0.25))
 platforms.append(fcs.add_platform(space, 0, 300, -0.5))
 spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
 spikes.append(fcs.add_platform_spike(space, platforms[1][1]))
-conveyors.append(fcs.add_conveyor(space, 200, 150, 100, 100))
+conveyors.append(fcs.add_conveyor(space, 200, 150, 100, 150))
 spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], num_spikes=2))
+goal.append(fcs.add_goal(space, 50, 50))
 
 all_objects.extend(platforms)
 all_objects.extend(spikes)
 all_objects.extend(conveyors)
+all_objects.extend(goal)
+
+def mark_visited(objects, shape: pymunk.Shape):
+    for object in objects:
+        if (object[1] == shape):
+            object[2] = True
+            break
 
 def reset_world(space: pymunk.Space):
     ball_body.position = (150, 600)
@@ -47,9 +56,12 @@ def reset_world(space: pymunk.Space):
     for conveyor in conveyors:
         conveyor[0].position = conveyor[0].origin
         conveyor[0].velocity = (0, 0)
+        conveyor[2] = False
         for spike in conveyor[0].spikes:
             spike[0].position = spike[0].origin
             spike[0].velocity = (0, 0)
+    for platform in platforms:
+        platform[2] = False
 
 def end_fail(arbiter, space, data):
     reset_world(space)
@@ -59,11 +71,15 @@ def end_win(arbiter, space, data):
 def flip_jump_state(arbiter, space, data):
     global can_jump
     can_jump = not can_jump
+    _, platform_shape = arbiter.shapes
+    mark_visited(platforms, platform_shape)
 
 def move_conveyor(arbiter, space, data):
     global can_jump
     can_jump = not can_jump
     ball_shape, conveyor_shape = arbiter.shapes
+
+    mark_visited(conveyors, conveyor_shape)
     if conveyor_shape.body.direction > 0:
         ball_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
         conveyor_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
@@ -84,7 +100,7 @@ def check_conveyor_state(arbiter, space, data):
 space.on_collision(BALL_TYPE, STATIC_TERRAIN_TYPE, begin=flip_jump_state, separate=flip_jump_state)
 space.on_collision(BALL_TYPE, SPIKE_TYPE, begin=end_fail)
 space.on_collision(BALL_TYPE, CONVEYOR_TYPE, begin=move_conveyor, pre_solve=check_conveyor_state, separate=flip_jump_state)
-
+space.on_collision(BALL_TYPE, GOAL_TYPE, begin=end_win)
 
 while running:
     for event in pygame.event.get():
@@ -110,6 +126,10 @@ while running:
     for spike in spikes:
         pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
 
+    for segment in goal[0][1]:
+        start = goal[0][0].local_to_world(segment.a)
+        end = goal[0][0].local_to_world(segment.b)
+        pygame.draw.line(screen, pygame.Color('black'), (start.x, fcs.flipy(start.y)), (end.x, fcs.flipy(end.y)), width=int(segment.radius*2))
     dt = 1.0 / 60.0
     for x in range(1):
         space.step(dt)

@@ -21,12 +21,13 @@ def add_platform(space: pymunk.Space, x: int, y: int, angle: float, width = 120,
     platform_body = pymunk.Body(body_type=pymunk.Body.STATIC)
     platform_body.position = (x, y)
     platform_body.angle = angle
+    platform_body.spikes = []
     platform_shape = pymunk.Poly.create_box(platform_body, (width, height))
     platform_shape.collision_type = 1 # Static terrain collision
     space.add(platform_body, platform_shape)
-    return platform_body, platform_shape
+    return [platform_body, platform_shape, False]
 
-def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size = 10, num_spikes = 1, higher = False):
+def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size = 10, num_spikes = 1, higher = False, offset = 0):
     platform_coords = get_world_coords(platform_shape)
     if higher:
         platform_coords = max(platform_coords, key=lambda point: point[1])
@@ -35,8 +36,8 @@ def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size =
             platform_coords = min(platform_coords, key=lambda point: point[0])
         else:
             platform_coords = max(platform_coords, key=lambda point: point[0])
-    spikes = []
 
+    platform_coords += pymunk.Vec2d.from_polar(offset, platform_shape.body.angle if not higher else platform_shape.body.angle + 3.14159)
     base_coord_1 = pymunk.Vec2d.from_polar(size, -2.6180)
     base_coord_2 = pymunk.Vec2d.from_polar(size, -0.5236)
     peak_coord = pymunk.Vec2d.from_polar(size, 1.5708)
@@ -47,15 +48,15 @@ def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size =
 
         spike_body.angle = platform_shape.body.angle
         spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
-        spike_shape.collision_type = 2 # spike collision (currently static terrain for testing)
+        spike_shape.collision_type = 2 # Spike collision 
         space.add(spike_body, spike_shape)
-        spikes.append([spike_body, spike_shape])
+        platform_shape.body.spikes.append([spike_body, spike_shape])
 
         platform_coords += pymunk.Vec2d.from_polar(1.5 * size, platform_shape.body.angle if not higher else platform_shape.body.angle + 3.14159)
     if num_spikes == 1:
-        return spikes[0]
+        return platform_shape.body.spikes[0]
     else:
-        return spikes
+        return platform_shape.body.spikes
 
 def get_closest_spike(space: pymunk.Space, ball_body: pymunk.Body, spikes):
     spike_coords = []
@@ -79,16 +80,17 @@ def add_conveyor(space: pymunk.Space, x: int, y: int, velocity: float, target: i
     conveyor_body.spikes = []
     conveyor_body.direction = -1 if x > target else 1
     conveyor_shape = pymunk.Poly.create_box(conveyor_body, (width, height))
-    conveyor_shape.collision_type = 4 # conveyor collision
+    conveyor_shape.collision_type = 4 # Conveyor collision
     space.add(conveyor_body, conveyor_shape)
-    return conveyor_body, conveyor_shape
+    return [conveyor_body, conveyor_shape, False]
 
-def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size = 10, num_spikes = 1, left=True):
+def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size = 10, num_spikes = 1, left = True, offset = 0):
     conveyor_coords = get_world_coords(conveyor_shape)
     if left:
         conveyor_coords = min(conveyor_coords, key=lambda point: (point[0], -point[1]))
     else:
         conveyor_coords = max(conveyor_coords, key=lambda point: (point[0], point[1]))
+    conveyor_coords += pymunk.Vec2d.from_polar(offset, 0 if left else 3.14159)
 
     base_coord_1 = pymunk.Vec2d.from_polar(size, -2.6180)
     base_coord_2 = pymunk.Vec2d.from_polar(size, -0.5236)
@@ -100,7 +102,7 @@ def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size =
         spike_body.angle = conveyor_shape.body.angle
         spike_body.origin = spike_body.position
         spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
-        spike_shape.collision_type = 2 # spike collision (currently static terrain for testing)
+        spike_shape.collision_type = 2 # Spike collision 
         space.add(spike_body, spike_shape)
         conveyor_shape.body.spikes.append([spike_body, spike_shape])
 
@@ -108,4 +110,26 @@ def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size =
     if num_spikes == 1:
         return conveyor_shape.body.spikes[0]
     else:
+
         return conveyor_shape.body.spikes
+
+def add_goal(space: pymunk.Space, x: int, y: int, width = 100, line_thickness = 10):
+    goal_body = pymunk.Body(body_type=pymunk.Body.STATIC)
+    goal_body.position = (x, y)
+    goal_base_shape = pymunk.Segment(goal_body, 
+                                     pymunk.Vec2d.from_polar(width/2, -2.0944), 
+                                     pymunk.Vec2d.from_polar(width/2, -1.0472),
+                                     radius=line_thickness/2)
+    goal_left_wall_shape = pymunk.Segment(goal_body, 
+                                          pymunk.Vec2d.from_polar(width/2, 3.1416),
+                                          pymunk.Vec2d.from_polar(width/2, -2.0944),
+                                          radius=line_thickness/2)
+    goal_right_wall_shape = pymunk.Segment(goal_body,
+                                           pymunk.Vec2d.from_polar(width/2, -1.0472),
+                                           pymunk.Vec2d.from_polar(width/2, 0),
+                                           radius=line_thickness/2)
+    goal_base_shape.collision_type = 3 # Goal collision
+    goal_left_wall_shape.collision_type = 1 # Static terrain collision
+    goal_right_wall_shape.collision_type = 1 # Static terrain collision
+    space.add(goal_body, goal_base_shape, goal_left_wall_shape, goal_right_wall_shape)
+    return [goal_body, [goal_base_shape, goal_left_wall_shape, goal_right_wall_shape]]
