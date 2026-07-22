@@ -23,11 +23,12 @@ running = True
 calculating = False
 space = pymunk.Space()
 space.gravity = 0.0, -GRAVITY
-space.iterations = 20
+space.iterations = 30
 space.idle_speed_threshold = 0.2
 
 # Level and state storage
 can_jump = False
+object_visit_order = []
 all_objects = []
 platforms = []
 spikes = []
@@ -46,16 +47,15 @@ space.add(bottom_shape)
 # Level Creation - use extend instead of append
 start.extend(fcs.add_start(space, 150))
 platforms.extend(fcs.add_platform(space, 150, 500, 0.25))
-platforms.extend(fcs.add_platform(space, 0, 300, -0.5))
 spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
-spikes.extend(fcs.add_platform_spike(space, platforms[1][1]))
 conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150))
 spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
-arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
+arcs.extend(fcs.add_arc(space, 175, 250, 50, +0.5236, -0.5236))
 spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
 spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=1, from_start=True, outside=False, offset=25))
 goal.extend(fcs.add_goal(space, 50, 50))
-hinges.extend(fcs.add_hinge(space, 0, 400, 100, -0.7854))
+platforms.extend(fcs.add_platform(space, 100, 100, -0.5, width=100))
+hinges.extend(fcs.add_hinge(space, 0, 400, 100, -0.7854, centered=False, left=True, clockwise=True))
 spikes.extend(fcs.add_hinge_spike(space, hinges[0][1], num_spikes=2))
 
 # Ball initialization
@@ -68,10 +68,11 @@ ball_shape.collision_type = BALL_TYPE
 space.add(ball_body, ball_shape)
 
 # Collision handlers
-def mark_visited(objects, shape: pymunk.Shape):
+def mark_visited(objects, body: pymunk.Body):
     for object in objects:
-        if (object[1] == shape):
+        if (object[0] == body):
             object[2] = True
+            object_visit_order.append(body)
             break
 
 def freeze_ball(space, key, data):
@@ -145,7 +146,7 @@ def begin_platform(arbiter, space, data):
     global can_jump
     can_jump = True
     _, platform_shape = arbiter.shapes
-    mark_visited(platforms, platform_shape)
+    mark_visited(platforms, platform_shape.body)
 def separate_platform(arbiter, space, data):
     global can_jump
     can_jump = False
@@ -155,7 +156,7 @@ def move_conveyor(arbiter, space, data):
     can_jump = True
     ball_shape, conveyor_shape = arbiter.shapes
 
-    mark_visited(conveyors, conveyor_shape)
+    mark_visited(conveyors, conveyor_shape.body)
     if conveyor_shape.body.direction > 0:
         ball_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
         conveyor_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
@@ -169,9 +170,9 @@ def move_conveyor(arbiter, space, data):
 def check_conveyor_state(arbiter, space, data):
     _, conveyor_shape = arbiter.shapes
     if conveyor_shape.body.position.x * conveyor_shape.body.direction > conveyor_shape.body.target * conveyor_shape.body.direction:
-        stop_movement(arbiter, space, data)
-        global can_jump
-        can_jump = True
+        conveyor_shape.body.velocity = (0, 0)
+        for spike in conveyor_shape.body.spikes:
+            spike[0].velocity = (0, 0)
 def stop_movement(arbiter, space, data):
     global can_jump
     can_jump = False 
@@ -182,11 +183,18 @@ def stop_movement(arbiter, space, data):
 
 def check_arc_state(arbiter, space, data):
     ball_body, arc_body = arbiter.bodies
-    mark_visited(arcs, arbiter.shapes[1])
-    if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius:
+    mark_visited(arcs, arc_body)
+    if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius and ((ball_body.position.y > arc_body.position.y) != (ball_body.position.get_distance(arc_body.position) < arc_body.radius)):
         global can_jump
         can_jump = True
-        
+        distance = ball_body.position.get_distance(arc_body.position)
+        direction = (ball_body.position - arc_body.position).normalized()
+        if (ball_body.position.y > arc_body.position.y):
+            correct_distance = (arc_body.radius + arc_body.thickness/2) + ball_body.radius
+            ball_body.position += (correct_distance - distance) * direction
+        else:
+            correct_distance = (arc_body.radius - arc_body.thickness/2) - ball_body.radius
+            ball_body.position += (correct_distance - distance) * direction
         space.add_post_step_callback(freeze_ball, key=ball_body, data={})
 def separate_arc(arbiter, space, data):
     global can_jump
@@ -231,9 +239,16 @@ while running:
             hinge[0].angular_velocity = 0
             for spike in hinge[0].spikes:
                 spike[0].angular_velocity = 0
-    screen.fill('white')
+    screen.fill((68, 156, 144))
 
     # Rendering
+    for spike in spikes:
+        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
+
+    pygame.draw.circle(screen, pygame.Color('white'), 
+                       (int(ball_shape.body.position.x), 
+                       int(fcs.flipy(ball_shape.body.position.y))), 
+                       int(ball_shape.radius))
     pygame.draw.circle(screen, pygame.Color('black'), 
                        (int(ball_shape.body.position.x), 
                        int(fcs.flipy(ball_shape.body.position.y))), 
@@ -243,22 +258,23 @@ while running:
         pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [platform[0].local_to_world(v) for v in platform[1].get_vertices()]])
 
     for conveyor in conveyors:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [conveyor[0].local_to_world(v) for v in conveyor[1].get_vertices()]])
+        pygame.draw.polygon(screen, pygame.Color('white'), [(v.x, fcs.flipy(v.y)) for v in [conveyor[0].local_to_world(v) for v in conveyor[1].get_vertices()]])
     
     for hinge in hinges:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [hinge[0].local_to_world(v) for v in hinge[1].get_vertices()]])
-        pygame.draw.circle(screen, pygame.Color('black'), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y))), hinge[0].width/2)
+        pygame.draw.polygon(screen, (111, 237, 220), [(v.x, fcs.flipy(v.y)) for v in [hinge[0].local_to_world(v) for v in hinge[1].get_vertices()]])
+        if hinge[0].centered:
+            pygame.draw.circle(screen, (111, 237, 220), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y) + hinge[0].width/2)), hinge[0].width/2)
+        else:
+            pygame.draw.circle(screen, (111, 237, 220), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y))), hinge[0].width/2)
 
     for arc in arcs:
         for segment in arc[1]:
-            pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [arc[0].local_to_world(v) for v in segment.get_vertices()]])
+            pygame.draw.polygon(screen, (27, 245, 39), [(v.x, fcs.flipy(v.y)) for v in [arc[0].local_to_world(v) for v in segment.get_vertices()]])
 
     pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [start[0].local_to_world(v) for v in start[2].get_vertices()]])
     pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [start[1].local_to_world(v) for v in start[3].get_vertices()]])
     pygame.draw.circle(screen, pygame.Color('black'), (int(start[0].pivot_position.x), int(fcs.flipy(start[0].pivot_position.y))), start[0].width/2)
     pygame.draw.circle(screen, pygame.Color('black'), (int(start[1].pivot_position.x), int(fcs.flipy(start[1].pivot_position.y))), start[1].width/2)
-    for spike in spikes:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
 
     for segment in goal[0][1]:
         a = goal[0][0].local_to_world(segment.a)
@@ -274,7 +290,7 @@ while running:
     # Reset when ball leaves screen
     # Theoretically should never run due to the border, but just in case something weird happens, still might be useful. 
     if ball_body.position[1] < -50:
-        reset_world(space)
+        reset_world(space, key=ball_body, data={})
     pygame.display.flip()
 
     clock.tick(60)
