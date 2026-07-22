@@ -46,16 +46,15 @@ space.add(bottom_shape)
 # Level Creation - use extend instead of append
 start.extend(fcs.add_start(space, 150))
 platforms.extend(fcs.add_platform(space, 150, 500, 0.25))
-platforms.extend(fcs.add_platform(space, 0, 300, -0.5))
 spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
-spikes.extend(fcs.add_platform_spike(space, platforms[1][1]))
 conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150))
 spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
-arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
-#spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
-#spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=1, from_start=True, outside=False, offset=25))
+arcs.extend(fcs.add_arc(space, 175, 250, 50, +0.5236, -0.5236))
+spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
+spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=1, from_start=True, outside=False, offset=25))
 goal.extend(fcs.add_goal(space, 50, 50))
-hinges.extend(fcs.add_hinge(space, 150, 250, 100, -0.7854, centered=True, left=False, clockwise=False))
+platforms.extend(fcs.add_platform(space, 100, 100, -0.5, width=100))
+hinges.extend(fcs.add_hinge(space, 0, 400, 100, -0.7854, centered=False, left=True, clockwise=True))
 spikes.extend(fcs.add_hinge_spike(space, hinges[0][1], num_spikes=2))
 
 # Ball initialization
@@ -169,9 +168,9 @@ def move_conveyor(arbiter, space, data):
 def check_conveyor_state(arbiter, space, data):
     _, conveyor_shape = arbiter.shapes
     if conveyor_shape.body.position.x * conveyor_shape.body.direction > conveyor_shape.body.target * conveyor_shape.body.direction:
-        stop_movement(arbiter, space, data)
-        global can_jump
-        can_jump = True
+        conveyor_shape.body.velocity = (0, 0)
+        for spike in conveyor_shape.body.spikes:
+            spike[0].velocity = (0, 0)
 def stop_movement(arbiter, space, data):
     global can_jump
     can_jump = False 
@@ -182,11 +181,10 @@ def stop_movement(arbiter, space, data):
 
 def check_arc_state(arbiter, space, data):
     ball_body, arc_body = arbiter.bodies
-    mark_visited(arcs, arbiter.shapes[1])
-    if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius:
+    if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius and ((ball_body.position.y > arc_body.position.y) != (ball_body.position.get_distance(arc_body.position) < arc_body.radius)):
         global can_jump
         can_jump = True
-        
+        mark_visited(arcs, arbiter.shapes[1])
         space.add_post_step_callback(freeze_ball, key=ball_body, data={})
 def separate_arc(arbiter, space, data):
     global can_jump
