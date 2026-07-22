@@ -53,8 +53,10 @@ platforms.extend(fcs.add_platform(space, 0, 300, -0.5))
 spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
 spikes.extend(fcs.add_platform_spike(space, platforms[1][1]))
 conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150))
-spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], num_spikes=2))
-arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236, 0.75, segments=100))
+spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
+arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
+spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
+spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2, from_start=False, outside=False, offset=75))
 goal.extend(fcs.add_goal(space, 50, 50))
 
 all_objects.extend(platforms)
@@ -81,9 +83,14 @@ def unfreeze_ball(space, key, data):
         ball_body.mass = ball_body.data[0]
         ball_body.moment = ball_body.data[1]
 
-def reset_world(space: pymunk.Space):
+def reset_world(space: pymunk.Space, key, data):
+    space.remove(ball_body, ball_shape)
+
     ball_body.position = (150, 600)
     ball_body.velocity = (0, 0)
+    unfreeze_ball(space, key=ball_body, data={})
+
+    space.add(ball_body, ball_shape)
     global can_jump
     can_jump = False
     for conveyor in conveyors:
@@ -91,18 +98,23 @@ def reset_world(space: pymunk.Space):
         conveyor[0].velocity = (0, 0)
         conveyor[2] = False
         for spike in conveyor[0].spikes:
-            spike[0].position = spike[0].origin
+            spike[0].position = spike[0].origin[0]
+            spike[0].angle = spike[0].origin[1]
             spike[0].velocity = (0, 0)
     for platform in platforms:
         platform[2] = False
     for arc in arcs:
         arc[0].angle = 0
         arc[2] = False
+        for spike in arc[0].spikes:
+            spike[0].position = spike[0].origin[0]
+            spike[0].angle = spike[0].origin[1]
+            spike[0].velocity = (0, 0)
 
 def end_fail(arbiter, space, data):
-    reset_world(space)
+    space.add_post_step_callback(reset_world, key="reset", data={})
 def end_win(arbiter, space, data):
-    reset_world(space)
+    space.add_post_step_callback(reset_world, key="reset", data={})
 
 def begin_platform(arbiter, space, data):
     global can_jump
@@ -145,7 +157,7 @@ def stop_movement(arbiter, space, data):
 
 def check_arc_state(arbiter, space, data):
     ball_body, arc_body = arbiter.bodies
-    arc[2] = True
+    mark_visited(arcs, arbiter.shapes[1])
     if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius:
         global can_jump
         can_jump = True

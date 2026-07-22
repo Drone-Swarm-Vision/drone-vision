@@ -100,7 +100,7 @@ def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size =
         spike_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         spike_body.position = pymunk.Vec2d(conveyor_coords[0], conveyor_coords[1]) + pymunk.Vec2d.from_polar(size, (conveyor_shape.body.angle + 0.5236 if left else conveyor_shape.body.angle + 2.6180))
         spike_body.angle = conveyor_shape.body.angle
-        spike_body.origin = spike_body.position
+        spike_body.origin = [spike_body.position, spike_body.angle]
         spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
         spike_shape.collision_type = 2 # Spike collision 
         space.add(spike_body, spike_shape)
@@ -130,7 +130,7 @@ def add_goal(space: pymunk.Space, x: int, y: int, width = 100, line_thickness = 
     space.add(goal_body, goal_base_shape, goal_left_wall_shape, goal_right_wall_shape)
     return [[goal_body, [goal_base_shape, goal_left_wall_shape, goal_right_wall_shape]]]
 
-def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle: float, end_angle: float, speed: float, segments=10, thickness=8):
+def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle: float, end_angle: float, speed = 1.25, segments=100, thickness=8):
     start_angle = 6.2832 + start_angle if start_angle < 0 else start_angle
     end_angle = 6.2832 + end_angle if end_angle < 0 else end_angle
 
@@ -138,6 +138,9 @@ def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle: float
     arc_body.position = (x, y)
     arc_body.angular_velocity = speed
     arc_body.radius = radius
+    arc_body.start_angle = start_angle
+    arc_body.end_angle = end_angle
+    arc_body.spikes = []
     space.add(arc_body)
 
     angle_step = abs(end_angle - start_angle) / segments
@@ -145,7 +148,7 @@ def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle: float
     shapes = []
     for rah in range(segments):
         angle1 = start_angle + (rah * angle_step)
-        angle2 = start_angle + (rah+1) * angle_step
+        angle2 = start_angle + (rah + 1) * angle_step
         vertices = []
         vertices.append(pymunk.Vec2d.from_polar(radius-thickness/2, angle1))
         vertices.append(pymunk.Vec2d.from_polar(radius+thickness/2, angle1))
@@ -159,3 +162,24 @@ def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle: float
     
     return [[arc_body, shapes, False]]
 
+def add_arc_spike(space: pymunk.Space, arc_body: pymunk.Body, size = 17, num_spikes = 1, offset = 0, from_start = True, outside = True):
+    offset = offset / arc_body.radius
+    offset = (offset + 0.79 * size / arc_body.radius if from_start else -offset - 0.79 * size / arc_body.radius)
+    for i in range(num_spikes):
+        spike_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        spike_body.position = arc_body.position
+        spike_body.angle = (arc_body.start_angle if from_start else arc_body.end_angle)
+        spike_body.origin = [spike_body.position, spike_body.angle]
+        spike_body.angular_velocity = arc_body.angular_velocity
+        spike_body.geo_center = pymunk.Vec2d.from_polar(arc_body.radius, offset)
+        base_coord_1 = pymunk.Vec2d.from_polar(size/2, offset + 1.5708) + spike_body.geo_center
+        base_coord_2 = pymunk.Vec2d.from_polar(size/2, offset - 1.5708) + spike_body.geo_center
+        peak_coord = pymunk.Vec2d.from_polar(size, offset + (0 if outside else 3.14159)) + spike_body.geo_center
+        spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
+        spike_shape.collision_type = 2 # Spike collision
+        space.add(spike_body, spike_shape)
+        arc_body.spikes.append([spike_body, spike_shape])
+
+        a = 0.6 if outside else 0.8
+        offset = offset + (a * size / arc_body.radius if from_start else a * -size / arc_body.radius)
+    return arc_body.spikes
