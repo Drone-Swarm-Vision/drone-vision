@@ -51,7 +51,7 @@ spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
 spikes.extend(fcs.add_platform_spike(space, platforms[1][1]))
 conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150))
 spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
-#arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
+arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
 #spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
 #spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=1, from_start=True, outside=False, offset=25))
 goal.extend(fcs.add_goal(space, 50, 50))
@@ -231,9 +231,16 @@ while running:
             hinge[0].angular_velocity = 0
             for spike in hinge[0].spikes:
                 spike[0].angular_velocity = 0
-    screen.fill('white')
+    screen.fill((68, 156, 144))
 
     # Rendering
+    for spike in spikes:
+        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
+
+    pygame.draw.circle(screen, pygame.Color('white'), 
+                       (int(ball_shape.body.position.x), 
+                       int(fcs.flipy(ball_shape.body.position.y))), 
+                       int(ball_shape.radius))
     pygame.draw.circle(screen, pygame.Color('black'), 
                        (int(ball_shape.body.position.x), 
                        int(fcs.flipy(ball_shape.body.position.y))), 
@@ -243,25 +250,23 @@ while running:
         pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [platform[0].local_to_world(v) for v in platform[1].get_vertices()]])
 
     for conveyor in conveyors:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [conveyor[0].local_to_world(v) for v in conveyor[1].get_vertices()]])
+        pygame.draw.polygon(screen, pygame.Color('white'), [(v.x, fcs.flipy(v.y)) for v in [conveyor[0].local_to_world(v) for v in conveyor[1].get_vertices()]])
     
     for hinge in hinges:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [hinge[0].local_to_world(v) for v in hinge[1].get_vertices()]])
+        pygame.draw.polygon(screen, (111, 237, 220), [(v.x, fcs.flipy(v.y)) for v in [hinge[0].local_to_world(v) for v in hinge[1].get_vertices()]])
         if hinge[0].centered:
-            pygame.draw.circle(screen, pygame.Color('black'), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y) + hinge[0].width/2)), hinge[0].width/2)
+            pygame.draw.circle(screen, (111, 237, 220), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y) + hinge[0].width/2)), hinge[0].width/2)
         else:
-            pygame.draw.circle(screen, pygame.Color('black'), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y))), hinge[0].width/2)
+            pygame.draw.circle(screen, (111, 237, 220), (int(hinge[0].pivot_position.x), int(fcs.flipy(hinge[0].pivot_position.y))), hinge[0].width/2)
 
     for arc in arcs:
         for segment in arc[1]:
-            pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [arc[0].local_to_world(v) for v in segment.get_vertices()]])
+            pygame.draw.polygon(screen, (27, 245, 39), [(v.x, fcs.flipy(v.y)) for v in [arc[0].local_to_world(v) for v in segment.get_vertices()]])
 
     pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [start[0].local_to_world(v) for v in start[2].get_vertices()]])
     pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [start[1].local_to_world(v) for v in start[3].get_vertices()]])
     pygame.draw.circle(screen, pygame.Color('black'), (int(start[0].pivot_position.x), int(fcs.flipy(start[0].pivot_position.y))), start[0].width/2)
     pygame.draw.circle(screen, pygame.Color('black'), (int(start[1].pivot_position.x), int(fcs.flipy(start[1].pivot_position.y))), start[1].width/2)
-    for spike in spikes:
-        pygame.draw.polygon(screen, pygame.Color('black'), [(v.x, fcs.flipy(v.y)) for v in [spike[0].local_to_world(v) for v in spike[1].get_vertices()]])
 
     for segment in goal[0][1]:
         a = goal[0][0].local_to_world(segment.a)
