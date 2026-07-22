@@ -125,8 +125,8 @@ def add_goal(space: pymunk.Space, x: int, y: int, width = 100, line_thickness = 
                                            pymunk.Vec2d.from_polar(width/2, 0),
                                            radius=line_thickness/2)
     goal_base_shape.collision_type = 3 # Goal collision
-    goal_left_wall_shape.collision_type = 1 # Static terrain collision
-    goal_right_wall_shape.collision_type = 1 # Static terrain collision
+    goal_left_wall_shape.collision_type = 6 # Static terrain collision but can't jump
+    goal_right_wall_shape.collision_type = 6 # Static terrain collision but can't jump
     space.add(goal_body, goal_base_shape, goal_left_wall_shape, goal_right_wall_shape)
     return [[goal_body, [goal_base_shape, goal_left_wall_shape, goal_right_wall_shape]]]
 
