@@ -2,7 +2,7 @@ import pygame
 import pymunk
 import env_functions as fcs
 
-# General settings
+# General collision settings
 SCREEN_DIMENSIONS = (300, 600)
 GRAVITY = 450
 BALL_TYPE = 0
@@ -11,6 +11,7 @@ SPIKE_TYPE = 2
 GOAL_TYPE = 3
 CONVEYOR_TYPE = 4
 ARC_TYPE = 5
+GOAL_BODY_TYPE = 6
 
 
 # Pygame and pymunk initialization
@@ -52,11 +53,12 @@ platforms.extend(fcs.add_platform(space, 150, 500, 0.25))
 platforms.extend(fcs.add_platform(space, 0, 300, -0.5))
 spikes.extend(fcs.add_platform_spike(space, platforms[0][1], num_spikes=2))
 spikes.extend(fcs.add_platform_spike(space, platforms[1][1]))
-conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150))
-spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
+conveyors.extend(fcs.add_conveyor(space, 200, 150, 100, 150, 300))
+platforms.extend(fcs.add_platform(space, 200, 150, -0.5))
+#spikes.extend(fcs.add_conveyor_spike(space, conveyors[0][1], left=False, num_spikes=2))
 arcs.extend(fcs.add_arc(space, 150, 250, 50, +0.5236, -0.5236))
 spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2))
-spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=2, from_start=True, outside=False, offset=25))
+spikes.extend(fcs.add_arc_spike(space, arcs[0][0], num_spikes=1, from_start=True, outside=False, offset=25))
 goal.extend(fcs.add_goal(space, 50, 50))
 
 all_objects.extend(platforms)
@@ -94,13 +96,15 @@ def reset_world(space: pymunk.Space, key, data):
     global can_jump
     can_jump = False
     for conveyor in conveyors:
-        conveyor[0].position = conveyor[0].origin
         conveyor[0].velocity = (0, 0)
+        conveyor[0].position = conveyor[0].origin
+        conveyor[1].collision_type = CONVEYOR_TYPE
         conveyor[2] = False
         for spike in conveyor[0].spikes:
             spike[0].position = spike[0].origin[0]
             spike[0].angle = spike[0].origin[1]
             spike[0].velocity = (0, 0)
+
     for platform in platforms:
         platform[2] = False
     for arc in arcs:
@@ -121,6 +125,11 @@ def begin_platform(arbiter, space, data):
     can_jump = True
     _, platform_shape = arbiter.shapes
     mark_visited(platforms, platform_shape)
+def begin_goal(arbiter, space, data):
+    global can_jump
+    can_jump = False
+    _, goal_shape = arbiter.shapes
+    mark_visited(goal, goal_shape)
 def separate_platform(arbiter, space, data):
     global can_jump
     can_jump = False
@@ -143,10 +152,15 @@ def move_conveyor(arbiter, space, data):
             spike[0].velocity = (-conveyor_shape.body.move_speed, 0)
 def check_conveyor_state(arbiter, space, data):
     _, conveyor_shape = arbiter.shapes
-    if conveyor_shape.body.position.x * conveyor_shape.body.direction > conveyor_shape.body.target * conveyor_shape.body.direction:
+    if conveyor_shape.body.position.x * conveyor_shape.body.direction >= conveyor_shape.body.target * conveyor_shape.body.direction:
         stop_movement(arbiter, space, data)
         global can_jump
         can_jump = True
+        conveyor_shape.collision_type = STATIC_TERRAIN_TYPE
+    else:
+        conveyor_shape.collision_type = CONVEYOR_TYPE
+
+    
 def stop_movement(arbiter, space, data):
     global can_jump
     can_jump = False 
@@ -173,6 +187,8 @@ space.on_collision(BALL_TYPE, CONVEYOR_TYPE, begin=move_conveyor, pre_solve=chec
 space.on_collision(BALL_TYPE, SPIKE_TYPE, begin=end_fail)
 space.on_collision(BALL_TYPE, GOAL_TYPE, begin=end_win)
 space.on_collision(BALL_TYPE, ARC_TYPE, pre_solve=check_arc_state, separate=separate_arc)
+space.on_collision(BALL_TYPE, GOAL_BODY_TYPE, begin=begin_goal)
+
 
 # Main game loop
 while running:
