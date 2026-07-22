@@ -23,11 +23,12 @@ running = True
 calculating = False
 space = pymunk.Space()
 space.gravity = 0.0, -GRAVITY
-space.iterations = 20
+space.iterations = 30
 space.idle_speed_threshold = 0.2
 
 # Level and state storage
 can_jump = False
+object_visit_order = []
 all_objects = []
 platforms = []
 spikes = []
@@ -67,10 +68,11 @@ ball_shape.collision_type = BALL_TYPE
 space.add(ball_body, ball_shape)
 
 # Collision handlers
-def mark_visited(objects, shape: pymunk.Shape):
+def mark_visited(objects, body: pymunk.Body):
     for object in objects:
-        if (object[1] == shape):
+        if (object[0] == body):
             object[2] = True
+            object_visit_order.append(body)
             break
 
 def freeze_ball(space, key, data):
@@ -144,7 +146,7 @@ def begin_platform(arbiter, space, data):
     global can_jump
     can_jump = True
     _, platform_shape = arbiter.shapes
-    mark_visited(platforms, platform_shape)
+    mark_visited(platforms, platform_shape.body)
 def separate_platform(arbiter, space, data):
     global can_jump
     can_jump = False
@@ -154,7 +156,7 @@ def move_conveyor(arbiter, space, data):
     can_jump = True
     ball_shape, conveyor_shape = arbiter.shapes
 
-    mark_visited(conveyors, conveyor_shape)
+    mark_visited(conveyors, conveyor_shape.body)
     if conveyor_shape.body.direction > 0:
         ball_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
         conveyor_shape.body.velocity = (conveyor_shape.body.move_speed, 0)
@@ -181,10 +183,18 @@ def stop_movement(arbiter, space, data):
 
 def check_arc_state(arbiter, space, data):
     ball_body, arc_body = arbiter.bodies
+    mark_visited(arcs, arc_body)
     if abs(ball_body.position.x - arc_body.position.x) < 0.4 * arc_body.radius and ((ball_body.position.y > arc_body.position.y) != (ball_body.position.get_distance(arc_body.position) < arc_body.radius)):
         global can_jump
         can_jump = True
-        mark_visited(arcs, arbiter.shapes[1])
+        distance = ball_body.position.get_distance(arc_body.position)
+        direction = (ball_body.position - arc_body.position).normalized()
+        if (ball_body.position.y > arc_body.position.y):
+            correct_distance = (arc_body.radius + arc_body.thickness/2) + ball_body.radius
+            ball_body.position += (correct_distance - distance) * direction
+        else:
+            correct_distance = (arc_body.radius - arc_body.thickness/2) - ball_body.radius
+            ball_body.position += (correct_distance - distance) * direction
         space.add_post_step_callback(freeze_ball, key=ball_body, data={})
 def separate_arc(arbiter, space, data):
     global can_jump
