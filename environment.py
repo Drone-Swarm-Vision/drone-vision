@@ -70,7 +70,8 @@ def mark_visited(objects, body: pymunk.Body):
     for object in objects:
         if (object[0] == body):
             object[2] = True
-            object_visit_order.append(body)
+            if body not in object_visit_order:
+                object_visit_order.append(body)
             break
 
 def freeze_ball(space, key, data):
@@ -91,6 +92,7 @@ def set_jump_false(arbiter, space, data):
     can_jump = False
 
 def reset_world(space: pymunk.Space, key, data):
+    object_visit_order = []
     start[0].position = start[0].data[0]
     start[0].angle = start[0].data[1]
     start[0].angular_velocity = 0
@@ -199,7 +201,7 @@ def separate_arc(arbiter, space, data):
 def move_hinge(arbiter, space, data):
     set_jump_true(arbiter, space, data)
     _, hinge_shape = arbiter.shapes
-    mark_visited(hinges, hinge_shape)
+    mark_visited(hinges, hinge_shape.body)
     if not fcs.find_lowest_angle(hinge_shape.body.angle, hinge_shape.body.target):
         hinge_shape.body.angular_velocity = hinge_shape.body.speed * hinge_shape.body.direction
         for spike in hinge_shape.body.spikes:
