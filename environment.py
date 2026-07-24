@@ -35,6 +35,7 @@ goal = []
 arcs = []
 hinges = []
 start = []
+num_frames_passed = 0
 
 # World border initialization
 border_body = space.static_body
@@ -92,7 +93,11 @@ def set_jump_false(arbiter, space, data):
     can_jump = False
 
 def reset_world(space: pymunk.Space, key, data):
+    global object_visit_order, num_frames_passed, calculating, can_jump
     object_visit_order = []
+    num_frames_passed = 0
+    calculating = False
+    can_jump = False
     start[0].position = start[0].data[0]
     start[0].angle = start[0].data[1]
     start[0].angular_velocity = 0
@@ -101,8 +106,6 @@ def reset_world(space: pymunk.Space, key, data):
     start[1].angle = start[1].data[1]
     start[1].angular_velocity = 0
     start[1].velocity = (0, 0)
-    global calculating
-    calculating = False
     space.remove(ball_body, ball_shape)
     space.add(ball_body, ball_shape)
     ball_body.position = (start[0].position.x + 7, start[0].position.y + 13)
@@ -112,9 +115,6 @@ def reset_world(space: pymunk.Space, key, data):
     ball_body.force = (0, 0)
     ball_body.torque = 0
     unfreeze_ball(space, key=ball_body, data={})
-
-    global can_jump
-    can_jump = False
     for conveyor in conveyors:
         conveyor[0].position = conveyor[0].origin
         conveyor[0].velocity = (0, 0)
@@ -223,12 +223,11 @@ while running:
         
     keys = pygame.key.get_pressed()
     
-    if keys[pygame.K_SPACE]:
+    if not calculating and keys[pygame.K_SPACE]:
         calculating = True
     if can_jump and keys[pygame.K_SPACE]:
         unfreeze_ball(space, key=ball_body, data={})
         ball_body.velocity = (ball_body.velocity.x, 0.4 * GRAVITY)
-        print(fcs.get_closest_object(ball_body, platforms))
 
     for hinge in hinges:
         if fcs.find_lowest_angle(hinge[0].angle, hinge[0].target):
@@ -287,6 +286,8 @@ while running:
     pygame.display.flip()
 
     clock.tick(60)
+    num_frames_passed += 1
+    
 
 pygame.quit()
 
