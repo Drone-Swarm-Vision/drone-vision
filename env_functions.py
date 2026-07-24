@@ -13,7 +13,7 @@ def get_closest_object(ball_body: pymunk.Body, objects):
     closest = objects[0]
     ball_coords = ball_body.position
     for object in objects:
-        if object[0].position.get_distance(ball_coords) < closest[0].position.get_distance(ball_coords):
+        if object[0].geo_center.get_distance(ball_coords) < closest[0].geo_center.get_distance(ball_coords):
             closest = object
 
     return closest, ball_coords.get_distance(closest[0].position)
@@ -38,6 +38,7 @@ def get_world_coords(shape: pymunk.Shape):
 def add_platform(space: pymunk.Space, x: int, y: int, angle: float, width = 120, height = 5):
     platform_body = pymunk.Body(body_type=pymunk.Body.STATIC)
     platform_body.position = (x, y)
+    platform_body.geo_center = platform_body.position
     platform_body.angle = angle
     platform_body.spikes = []
     platform_shape = pymunk.Poly.create_box(platform_body, (width, height))
@@ -63,7 +64,7 @@ def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size =
     for i in range(num_spikes):
         spike_body = pymunk.Body(body_type=pymunk.Body.STATIC)
         spike_body.position = pymunk.Vec2d(platform_coords[0], platform_coords[1]) + pymunk.Vec2d.from_polar(size, (platform_shape.body.angle + 0.5236 if platform_shape.body.angle >= 0 ^ higher else platform_shape.body.angle + 2.6180))
-
+        spike_body.geo_center = spike_body.position
         spike_body.angle = platform_shape.body.angle
         spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
         spike_shape.collision_type = 2 # Spike collision 
@@ -77,6 +78,7 @@ def add_platform_spike(space: pymunk.Space, platform_shape: pymunk.Shape, size =
 def add_conveyor(space: pymunk.Space, x: int, y: int, velocity: float, target: int, width = 120, height = 5):
     conveyor_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
     conveyor_body.position = (x, y)
+    conveyor_body.geo_center = conveyor_body.position
     conveyor_body.origin = (x, y)
     conveyor_body.velocity = (0, 0)
     conveyor_body.move_speed = velocity
@@ -104,6 +106,7 @@ def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size =
         spike_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         spike_body.position = pymunk.Vec2d(conveyor_coords[0], conveyor_coords[1]) + pymunk.Vec2d.from_polar(size, (conveyor_shape.body.angle + 0.5236 if left else conveyor_shape.body.angle + 2.6180))
         spike_body.angle = conveyor_shape.body.angle
+        spike_body.geo_center = spike_body.position
         spike_body.origin = [spike_body.position, spike_body.angle]
         spike_shape = pymunk.Poly(spike_body, [base_coord_1, base_coord_2, peak_coord])
         spike_shape.collision_type = 2 # Spike collision 
@@ -116,6 +119,7 @@ def add_conveyor_spike(space: pymunk.Space, conveyor_shape: pymunk.Shape, size =
 def add_goal(space: pymunk.Space, x: int, y: int, width = 100, line_thickness = 5):
     goal_body = pymunk.Body(body_type=pymunk.Body.STATIC)
     goal_body.position = (x, y)
+    goal_body.geo_center = (x, y)
     goal_base_shape = pymunk.Segment(goal_body, 
                                      pymunk.Vec2d.from_polar(width/2, -2.0944), 
                                      pymunk.Vec2d.from_polar(width/2, -1.0472),
@@ -138,6 +142,7 @@ def add_arc(space: pymunk.Space, x: int, y: int, radius: int, start_angle = 0.52
 
     arc_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
     arc_body.position = (x, y)
+    arc_body.geo_center = arc_body.position
     arc_body.angular_velocity = speed
     arc_body.radius = radius
     arc_body.start_angle = start_angle
@@ -192,6 +197,7 @@ def add_hinge(space: pymunk.Space, x: int, y: int, length: int, target: float, w
     hinge_body.position = pymunk.Vec2d(x, y)
     hinge_body.angle = angle if left else 3.14159 - angle
     hinge_body.pivot_position = pymunk.Vec2d(x, y)
+    hinge_body.geo_center = hinge_body.position if centered else (hinge_body.position + pymunk.Vec2d.from_polar(length, hinge_body.angle))
     hinge_body.width = width
     hinge_body.length = length
     hinge_body.target = target
@@ -248,10 +254,3 @@ def add_start(space: pymunk.Space, x: int, width = 28, thickness = 5):
     right_gate_joint = pymunk.PivotJoint(space.static_body, right_gate_body, right_gate_body.pivot_position)
     space.add(left_gate_body, right_gate_body, left_gate_shape, right_gate_shape, left_gate_joint, right_gate_joint)
     return [left_gate_body, right_gate_body, left_gate_shape, right_gate_shape, left_gate_joint, right_gate_joint]
-
-#def add_start(space: pymunk.Space, x: int, width = 28, thickness = 5):
-    left_gate = []
-    left_gate.extend(add_hinge(space, x - width/2, 575, width/2, -1.5708, width=thickness))
-    right_gate = []
-    right_gate.extend(add_hinge(space, x + width/2, 575, width/2, -1.5708, left=False))
-    return [left_gate[0], right_gate[0], left_gate[1], right_gate[1]]

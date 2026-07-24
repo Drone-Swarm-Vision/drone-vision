@@ -226,6 +226,7 @@ while running:
     if can_jump and keys[pygame.K_SPACE]:
         unfreeze_ball(space, key=ball_body, data={})
         ball_body.velocity = (ball_body.velocity.x, 0.4 * GRAVITY)
+        print(fcs.get_closest_object(ball_body, platforms))
 
     for hinge in hinges:
         if fcs.find_lowest_angle(hinge[0].angle, hinge[0].target):
